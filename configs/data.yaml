@@ -1,0 +1,12 @@
+path: ./data/splits          # Thư mục gốc dataset
+train: train/images
+val:   val/images
+test:  test/images
+
+nc: 4
+
+names:
+  0: car           # Ô tô
+  1: motorbike     # Xe máy
+  2: person        # Người đi bộ
+  3: truck         # Xe tải

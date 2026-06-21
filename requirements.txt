@@ -1,0 +1,35 @@
+# Hệ thống cảnh báo va chạm - Requirements
+# Cài đặt: pip install -r requirements.txt
+
+# Deep Learning
+torch>=2.0.0
+torchvision>=0.15.0
+
+# Object Detection
+ultralytics>=8.0.0          # YOLOv8
+
+# Computer Vision
+opencv-python>=4.8.0
+Pillow>=9.0.0
+
+# Data & Dataset
+roboflow>=1.0.0
+gdown                        # Download từ Google Drive
+
+# Tracking
+filterpy>=1.4.5             # Kalman filter cho SORT
+
+# Audio Alert
+pygame>=2.0.0
+gTTS>=2.3.0                 # Google Text-to-Speech (TTS)
+pyttsx3>=2.90               # Offline TTS backup
+
+# Visualization
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# Utilities
+tqdm>=4.65.0
+numpy>=1.24.0
+pandas>=2.0.0
+PyYAML>=6.0

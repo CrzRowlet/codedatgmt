@@ -1,0 +1,45 @@
+# ============================================================
+# Cấu hình hệ thống cảnh báo va chạm
+# ============================================================
+
+detection:
+  model_path: models/weights/best.pt
+  confidence: 0.50            # Ngưỡng confidence tối thiểu
+  iou_threshold: 0.45
+  img_size: 640
+  device: auto                # auto | cpu | cuda | mps
+
+distance:
+  # Thông số camera hành trình (cần hiệu chỉnh)
+  focal_length_px: 700        # Tiêu cự tính theo pixel (hiệu chỉnh ngày 5)
+  # Chiều rộng thực của đối tượng (mét)
+  real_widths:
+    car: 1.8
+    motorbike: 0.7
+    person: 0.5
+    truck: 2.5
+    obstacle: 0.5
+
+ttc:
+  history_frames: 10          # Số frame để tính vận tốc trung bình
+  min_approach_speed: 0.1     # m/s - bỏ qua nếu chậm hơn
+
+alert:
+  # Ngưỡng TTC (giây)
+  safe_threshold: 5.0
+  warning_threshold: 2.0
+  # Khoảng cách tuyệt đối (mét)
+  safe_distance: 10.0
+  warning_distance: 5.0
+  danger_distance: 2.0
+  # Cooldown giữa các cảnh báo âm thanh (giây)
+  audio_cooldown: 2.0
+  tts_language: vi            # Ngôn ngữ TTS: vi = tiếng Việt
+
+output:
+  show_fps: true
+  show_distance: true
+  show_ttc: true
+  save_video: false
+  log_csv: true
+  log_path: logs/events.csv
