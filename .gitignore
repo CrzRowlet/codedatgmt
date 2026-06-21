@@ -4,7 +4,6 @@ __pycache__/
 *.pyc
 runs/
 logs/
-data/
-data/audio_cache/
+data/splits/
 *.mp4
 *.pt
