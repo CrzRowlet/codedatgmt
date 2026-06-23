@@ -2,8 +2,6 @@ venv/
 .venv/
 __pycache__/
 *.pyc
-runs/
 logs/
 data/splits/
 *.mp4
-*.pt
