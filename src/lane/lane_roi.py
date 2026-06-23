@@ -582,8 +582,9 @@ class LaneROI:
                 if state["current_lane_idx"] < n_lanes:
                     state["current_points"].append((x, y))
 
-        win = "ROI Setup — Click để đặt điểm lane"
-        cv2.namedWindow(win)
+        win = "Setup Lane ROI"
+        cv2.namedWindow(win, cv2.WINDOW_NORMAL)
+        cv2.resizeWindow(win, 1280, 720)
         cv2.setMouseCallback(win, mouse_cb)
 
         print("\n" + "="*55)

@@ -381,6 +381,11 @@ class CollisionWarningPipeline:
         self._running = True
         frame_delay   = 1.0 / self.cfg["target_fps"]
 
+        if self.show_window:
+            win_name = "He Thong Canh Bao Va Cham - CWS v1.0"
+            cv2.namedWindow(win_name, cv2.WINDOW_NORMAL)
+            cv2.resizeWindow(win_name, 1280, 720)
+
         print("\n" + "="*50)
         print("  PIPELINE DANG CHAY  -  Nhan Q de thoat")
         print("="*50 + "\n")
