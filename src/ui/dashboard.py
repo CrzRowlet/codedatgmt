@@ -32,6 +32,7 @@ import numpy as np
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 from src.tracking.ttc       import ObjectTracker, draw_full_overlay, AlertState
 from src.alert.alert_system  import AlertSystem, AlertLevel, AlertOverlayRenderer, EventLogger
+from src.lane.lane_roi       import LaneROI, LanePosition, draw_lane_overlay
 
 # ── Kiem tra Tkinter ──────────────────────────────────────
 try:
@@ -103,9 +104,14 @@ class PipelineProcessor(threading.Thread):
         self.q            = result_queue or queue.Queue(maxsize=4)
         self._stop_event  = threading.Event()
         self._paused      = threading.Event()
+        self.conf_threshold = 0.5
+        self.enable_lane  = False
+        self.alert        = None
 
     def stop(self):
         self._stop_event.set()
+        if self.alert:
+            self.alert.stop()
 
     def pause(self):
         self._paused.set()
@@ -117,9 +123,10 @@ class PipelineProcessor(threading.Thread):
         # Khoi tao module
         detector  = self._load_yolo()
         tracker   = ObjectTracker(max_missed=8)
-        alert     = AlertSystem() if self.enable_audio else None
+        self.alert = AlertSystem() if self.enable_audio else None
         renderer  = AlertOverlayRenderer()
         logger    = EventLogger()
+        self.lane_roi = LaneROI(config_file="configs/lane_roi.json", n_lanes=3)
 
         # Mo video
         try:
@@ -156,16 +163,24 @@ class PipelineProcessor(threading.Thread):
 
             # Track + TTC
             tracks = tracker.update(dets, frame.shape[1], timestamp=t0)
+            if self.lane_roi and self.enable_lane:
+                self.lane_roi.update_frame_size(frame.shape[1], frame.shape[0])
+                tracks = self.lane_roi.classify_tracks(tracks)
+                alert_tracks = [t for t in tracks if t.get("lane_position") in (LanePosition.EGO_LANE, LanePosition.UNKNOWN)]
+            else:
+                alert_tracks = tracks
 
             # Alert
             level = AlertLevel.SAFE
-            if tracks and alert:
-                level = alert.process_tracks(tracks)
-                if level != AlertLevel.SAFE and tracks:
-                    t = tracks[0]
+            if alert_tracks and self.alert:
+                level = self.alert.process_tracks(alert_tracks)
+                if level != AlertLevel.SAFE and alert_tracks:
+                    t = alert_tracks[0]
                     logger.log(level, t["distance_m"], t.get("ttc"), t.get("class_name",""))
 
             # Render
+            if self.lane_roi and self.enable_lane:
+                frame = draw_lane_overlay(frame, self.lane_roi, tracks)
             vis = renderer.render(frame, tracks, level,
                                    fps=self._calc_fps(fps_hist), frame_count=frame_count)
 
@@ -180,7 +195,7 @@ class PipelineProcessor(threading.Thread):
                 "level"       : level,
                 "fps"         : self._calc_fps(fps_hist),
                 "frame_count" : frame_count,
-                "alert_stats" : alert.get_stats() if alert else {},
+                "alert_stats" : self.alert.get_stats() if self.alert else {},
             }
             try:
                 self.q.put_nowait(result)
@@ -199,7 +214,7 @@ class PipelineProcessor(threading.Thread):
             return None
 
     def _yolo_detect(self, model, frame) -> list:
-        results = model.predict(frame, conf=0.5, verbose=False)[0]
+        results = model.predict(frame, conf=self.conf_threshold, verbose=False)[0]
         dets = []
         for box in results.boxes:
             x1,y1,x2,y2 = map(int, box.xyxy[0])
@@ -383,7 +398,16 @@ class CWSDashboard:
                                      bg=COLORS_TK["bg_panel"], fg=COLORS_TK["text_muted"])
         self._lbl_status.pack(side="right", padx=20)
 
-        # ── Noi dung chinh ────────────────────────────────
+        # ── Thanh trang thai & Dieu khien (Pack truoc de ghim) ──
+        self._status_bar = tk.Frame(self.root, height=8)
+        self._status_bar.pack(fill="x", side="bottom")
+        self._update_status_bar(AlertLevel.SAFE)
+
+        ctrl = tk.Frame(self.root, bg=COLORS_TK["bg_panel"], height=50)
+        ctrl.pack(fill="x", side="bottom")
+        self._build_controls(ctrl)
+
+        # ── Noi dung chinh (Pack sau de expand) ──────────────
         main = tk.Frame(self.root, bg=COLORS_TK["bg_dark"])
         main.pack(fill="both", expand=True, padx=10, pady=5)
 
@@ -392,11 +416,9 @@ class CWSDashboard:
         left.pack(side="left", fill="both", expand=True)
 
         # Khung video
-        self._lbl_video = tk.Label(
-            left, bg="black", width=UI_CONFIG["video_w"]//10,
-            height=UI_CONFIG["video_h"]//20
-        )
-        self._lbl_video.pack(pady=(0, 5))
+        self._blank_video = tk.PhotoImage(width=UI_CONFIG["video_w"], height=UI_CONFIG["video_h"])
+        self._lbl_video = tk.Label(left, bg="black", image=self._blank_video)
+        self._lbl_video.pack(pady=(0, 5), expand=True, fill="both")
 
         # Bieu do
         self._lbl_chart = tk.Label(left, bg=COLORS_TK["bg_panel"])
@@ -407,16 +429,6 @@ class CWSDashboard:
         right.pack(side="right", fill="y", padx=(10, 0))
         right.pack_propagate(False)
         self._build_right_panel(right)
-
-        # ── Thanh trang thai ──────────────────────────────
-        self._status_bar = tk.Frame(self.root, height=8)
-        self._status_bar.pack(fill="x", side="bottom")
-        self._update_status_bar(AlertLevel.SAFE)
-
-        # ── Thanh dieu khien ──────────────────────────────
-        ctrl = tk.Frame(self.root, bg=COLORS_TK["bg_panel"], height=50)
-        ctrl.pack(fill="x", side="bottom")
-        self._build_controls(ctrl)
 
     def _build_right_panel(self, parent):
         def card(parent, title, var_name, unit="", color=COLORS_TK["text_main"]):
@@ -476,11 +488,26 @@ class CWSDashboard:
 
         # Slider confidence
         tk.Label(parent, text="Confidence:", bg=COLORS_TK["bg_panel"],
-                 fg=COLORS_TK["text_muted"], font=("Arial", 9)).pack(side="left", padx=(20,4))
+                 fg=COLORS_TK["text_muted"], font=("Arial", 9)).pack(side="left", padx=(10,4))
         self._conf_var = tk.DoubleVar(value=0.5)
         tk.Scale(parent, variable=self._conf_var, from_=0.2, to=0.9, resolution=0.05,
                  orient="horizontal", length=100, bg=COLORS_TK["bg_panel"],
                  fg=COLORS_TK["text_main"], highlightthickness=0, bd=0).pack(side="left")
+
+        # Model selection
+        tk.Label(parent, text="Model:", bg=COLORS_TK["bg_panel"],
+                 fg=COLORS_TK["text_muted"], font=("Arial", 9)).pack(side="left", padx=(15,4))
+        self._model_var = tk.StringVar(value="Fine-tune (models/weights/best.pt)")
+        model_combo = ttk.Combobox(parent, textvariable=self._model_var, 
+                                   values=["Fine-tune (models/weights/best.pt)", "Scratch (scratch/Yolo_from_scratch/best.pt)"],
+                                   state="readonly", width=35)
+        model_combo.pack(side="left", padx=4)
+
+        # Lane toggle
+        self._enable_lane_var = tk.BooleanVar(value=False)
+        tk.Checkbutton(parent, text="Phân làn", variable=self._enable_lane_var,
+                       bg=COLORS_TK["bg_panel"], fg=COLORS_TK["text_main"],
+                       selectcolor=COLORS_TK["bg_card"], bd=0).pack(side="left", padx=(10,4))
 
     # ── Xu ly su kien ────────────────────────────────────
     def _toggle_run(self):
@@ -493,6 +520,12 @@ class CWSDashboard:
         self._running = True
         self._btn_start.config(text="  DUNG  ", bg=COLORS_TK["danger"])
         self._lbl_status.config(text="● DANG CHAY", fg=COLORS_TK["safe"])
+
+        selected_model = self._model_var.get()
+        if "Fine-tune" in selected_model:
+            self.model_path = "models/weights/best.pt"
+        else:
+            self.model_path = "scratch/Yolo_from_scratch/best.pt"
 
         self._processor = PipelineProcessor(
             source       = self.source,
@@ -509,6 +542,12 @@ class CWSDashboard:
             self._processor.stop()
         self._btn_start.config(text="  CHAY  ", bg=COLORS_TK["safe"])
         self._lbl_status.config(text="● DUNG", fg=COLORS_TK["text_muted"])
+        try:
+            import pygame
+            if pygame.mixer.get_init():
+                pygame.mixer.music.stop()
+        except Exception:
+            pass
 
     def _load_video(self):
         path = filedialog.askopenfilename(
@@ -536,14 +575,22 @@ class CWSDashboard:
             messagebox.showinfo("Thong bao", "Chua co file log. Hay chay pipeline truoc.")
 
     def _snapshot(self):
-        # Luu frame hien tai
-        pass  # Implement khi co frame
+        if not hasattr(self, "_last_frame"):
+            messagebox.showinfo("Info", "Khong co hinh anh de chup!")
+            return
+        path = filedialog.asksaveasfilename(defaultextension=".jpg", filetypes=[("JPEG", "*.jpg")])
+        if path:
+            cv2.imwrite(path, self._last_frame)
+            messagebox.showinfo("Thanh cong", f"Da luu {path}")
 
     # ── Poll queue va cap nhat UI ─────────────────────────
     def _poll_queue(self):
         """Lay frame tu queue va cap nhat UI. Goi lai chinh no moi 33ms."""
         if not self._running:
             return
+        if self._processor:
+            self._processor.conf_threshold = self._conf_var.get()
+            self._processor.enable_lane = self._enable_lane_var.get()
 
         try:
             data = self._q.get_nowait()
@@ -603,6 +650,7 @@ class CWSDashboard:
 
     def _update_video_frame(self, frame: np.ndarray):
         """Chuyen frame OpenCV BGR -> Tkinter PhotoImage va hien thi."""
+        self._last_frame = frame.copy()
         try:
             from PIL import Image, ImageTk
             h, w = UI_CONFIG["video_h"], UI_CONFIG["video_w"]

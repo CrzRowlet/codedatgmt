@@ -95,6 +95,7 @@ class AudioEngine:
         self._engine_type = self._detect_engine()
         self._pyttsx3_engine = None
         self._lock = threading.Lock()
+        self._stop_event = threading.Event()
 
         if self._engine_type == "gtts+pygame":
             self._init_pygame()
@@ -102,6 +103,20 @@ class AudioEngine:
             self._init_pyttsx3()
 
         print(f"[AudioEngine] Su dung engine: {self._engine_type}")
+
+    def stop(self):
+        self._stop_event.set()
+        try:
+            if self._engine_type == "gtts+pygame":
+                import pygame
+                if pygame.mixer.get_init():
+                    pygame.mixer.music.stop()
+                    pygame.mixer.stop()  # Ngat toan bo tieng beep (sound channels)
+            elif self._engine_type == "pyttsx3":
+                if self._pyttsx3_engine:
+                    self._pyttsx3_engine.stop()
+        except Exception:
+            pass
 
     def _detect_engine(self) -> str:
         try:
@@ -187,6 +202,7 @@ class AudioEngine:
     def _speak_gtts(self, text: str):
         try:
             with self._lock:
+                if self._stop_event.is_set(): return
                 mp3_path = self._get_cached_audio(text)
                 if not mp3_path or not mp3_path.exists() or mp3_path.stat().st_size == 0:
                     self._beep_fallback(text)
@@ -197,7 +213,7 @@ class AudioEngine:
                         self._init_pygame()
                     pygame.mixer.music.load(str(mp3_path))
                     pygame.mixer.music.play()
-                    while pygame.mixer.music.get_busy():
+                    while pygame.mixer.music.get_busy() and not self._stop_event.is_set():
                         time.sleep(0.05)
                 except Exception as e:
                     print(f"  [AudioEngine] play error: {e}. Dang thu khoi tao lai mixer...")
@@ -208,7 +224,7 @@ class AudioEngine:
                         self._init_pygame()
                         pygame.mixer.music.load(str(mp3_path))
                         pygame.mixer.music.play()
-                        while pygame.mixer.music.get_busy():
+                        while pygame.mixer.music.get_busy() and not self._stop_event.is_set():
                             time.sleep(0.05)
                     except Exception as re_err:
                         print(f"  [AudioEngine] play retry error: {re_err}")
@@ -219,6 +235,7 @@ class AudioEngine:
     def _speak_pyttsx3(self, text: str):
         try:
             with self._lock:
+                if self._stop_event.is_set(): return
                 try:
                     self._pyttsx3_engine.say(text)
                     self._pyttsx3_engine.runAndWait()
@@ -234,17 +251,19 @@ class AudioEngine:
     def beep(self, freq_hz: int = 880, duration_ms: int = 200):
         """Phat tieng beep ngan."""
         try:
-            import pygame
-            if not pygame.mixer.get_init():
-                self._init_pygame()
-            sample_rate = 22050
-            n_samples   = int(sample_rate * duration_ms / 1000)
-            import numpy as np
-            t   = np.linspace(0, duration_ms/1000, n_samples, False)
-            wav = (np.sin(2 * np.pi * freq_hz * t) * 28000).astype(np.int16)
-            sound = pygame.sndarray.make_sound(wav.reshape(-1, 1).repeat(2, axis=1))
-            sound.play()
-            time.sleep(duration_ms / 1000 + 0.05)
+            with self._lock:
+                if self._stop_event.is_set(): return
+                import pygame
+                if not pygame.mixer.get_init():
+                    self._init_pygame()
+                sample_rate = 22050
+                n_samples   = int(sample_rate * duration_ms / 1000)
+                import numpy as np
+                t   = np.linspace(0, duration_ms/1000, n_samples, False)
+                wav = (np.sin(2 * np.pi * freq_hz * t) * 28000).astype(np.int16)
+                sound = pygame.sndarray.make_sound(wav.reshape(-1, 1).repeat(2, axis=1))
+                sound.play()
+                time.sleep(duration_ms / 1000 + 0.05)
         except Exception:
             print("\a")
 
@@ -284,9 +303,14 @@ class AlertSystem:
         self._current_level   = AlertLevel.SAFE
         self._alert_queue     = queue.Queue()
         self._stats           = {"safe": 0, "warning": 0, "danger": 0, "total_alerts": 0}
+        self._stop_event      = threading.Event()
 
         # Pre-cache cac cau hay dung
         self._precache_common_messages()
+
+    def stop(self):
+        self._stop_event.set()
+        self.audio.stop()
 
     # ── Pre-cache ─────────────────────────────────────────
     def _precache_common_messages(self):
@@ -426,10 +450,15 @@ class AlertSystem:
 
     def _play_danger_sequence(self, msg: str):
         """Beep x2 + TTS cho DANGER."""
+        if self._stop_event.is_set(): return
         self.audio.beep(freq_hz=1200, duration_ms=150)
+        if self._stop_event.is_set(): return
         time.sleep(0.1)
+        if self._stop_event.is_set(): return
         self.audio.beep(freq_hz=1200, duration_ms=150)
+        if self._stop_event.is_set(): return
         time.sleep(0.1)
+        if self._stop_event.is_set(): return
         if msg:
             self.audio.speak(msg)
 
