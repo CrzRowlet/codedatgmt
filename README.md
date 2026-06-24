@@ -12,7 +12,7 @@ Video/Camera → YOLOv8 Detection → Object Tracking
                                TTC Calculation
                                        ↓
                         ┌──────────────────────────┐
-                        │  SAFE | WARNING | DANGER  │
+                        │  SAFE | WARNING | DANGER │
                         └──────────────────────────┘
                                        ↓
                           Visual Overlay + Audio TTS
