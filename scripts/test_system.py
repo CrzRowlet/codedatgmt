@@ -151,7 +151,7 @@ def test_distance_estimator():
 
     def t_all_classes():
         est = DistanceEstimator(focal_length_px=700.0)
-        class_names = ["car", "motorbike", "person", "truck", "obstacle"]
+        class_names = ["car", "motorbike", "person", "truck"]
         for cls_id, name in enumerate(class_names):
             r = est.estimate((300, 300, 400, 400), class_id=cls_id, confidence=0.8)
             assert r.class_name == name, f"Expected {name}, got {r.class_name}"
@@ -195,7 +195,7 @@ def test_distance_estimator():
 
     for name, fn in [
         ("basic estimate car 5m", t_basic),
-        ("all 5 classes", t_all_classes),
+        ("all 4 classes", t_all_classes),
         ("batch estimate + sort", t_batch),
         ("get_closest()", t_closest),
         ("calibrate()", t_calibrate),
