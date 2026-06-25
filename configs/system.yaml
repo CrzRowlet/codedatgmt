@@ -30,7 +30,7 @@ alert:
   warning_threshold: 2.0
   # Khoảng cách tuyệt đối (mét)
   safe_distance: 10.0
-  warning_distance: 5.0
+  warning_distance: 10.0
   danger_distance: 2.0
   # Cooldown giữa các cảnh báo âm thanh (giây)
   audio_cooldown: 2.0

@@ -42,8 +42,8 @@ ALERT_CONFIG = {
     "ttc_warning"  : 5.0,
     "ttc_danger"   : 2.0,
     # Nguong khoang cach (met)
-    "dist_warning" : 8.0,
-    "dist_danger"  : 3.0,
+    "dist_warning" : 10.0,
+    "dist_danger"  : 2.0,
     # Cooldown giua cac canh bao am thanh (giay)
     "cooldown_safe"   : 10.0,
     "cooldown_warning":  3.0,

@@ -43,7 +43,7 @@ TTC_WARNING_THRESHOLD = 2.0
 
 # Khoảng cách cảnh báo tuyệt đối (mét) — dùng khi TTC không tin cậy
 DIST_SAFE    = 10.0
-DIST_WARNING =  5.0
+DIST_WARNING = 10.0
 DIST_DANGER  =  2.0
 
 
