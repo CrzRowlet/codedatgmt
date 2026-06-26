@@ -415,14 +415,17 @@ class CWSDashboard:
         left = tk.Frame(main, bg=COLORS_TK["bg_dark"])
         left.pack(side="left", fill="both", expand=True)
 
-        # Khung video
-        self._blank_video = tk.PhotoImage(width=UI_CONFIG["video_w"], height=UI_CONFIG["video_h"])
-        self._lbl_video = tk.Label(left, bg="black", image=self._blank_video)
-        self._lbl_video.pack(pady=(0, 5), expand=True, fill="both")
-
-        # Bieu do
+        # Bieu do (Pack truoc o duoi de dam bao luon hien thi)
         self._lbl_chart = tk.Label(left, bg=COLORS_TK["bg_panel"])
-        self._lbl_chart.pack(fill="x", pady=(0, 5))
+        self._lbl_chart.pack(side="bottom", fill="x", pady=(0, 5))
+
+        # Khung video (Container để chặn vòng lặp phóng to)
+        self._video_container = tk.Frame(left, bg="black")
+        self._video_container.pack(side="top", pady=(0, 5), expand=True, fill="both")
+        
+        self._blank_video = tk.PhotoImage(width=UI_CONFIG["video_w"], height=UI_CONFIG["video_h"])
+        self._lbl_video = tk.Label(self._video_container, bg="black", image=self._blank_video)
+        self._lbl_video.place(relwidth=1.0, relheight=1.0)
 
         # Cot phai: panel thong so
         right = tk.Frame(main, bg=COLORS_TK["bg_panel"], width=240)
@@ -653,7 +656,15 @@ class CWSDashboard:
         self._last_frame = frame.copy()
         try:
             from PIL import Image, ImageTk
-            h, w = UI_CONFIG["video_h"], UI_CONFIG["video_w"]
+            
+            lbl_w = self._video_container.winfo_width()
+            lbl_h = self._video_container.winfo_height()
+            
+            if lbl_w > 10 and lbl_h > 10:
+                w, h = lbl_w, lbl_h
+            else:
+                w, h = UI_CONFIG["video_w"], UI_CONFIG["video_h"]
+                
             frame_rgb = cv2.cvtColor(cv2.resize(frame, (w, h)), cv2.COLOR_BGR2RGB)
             img = ImageTk.PhotoImage(Image.fromarray(frame_rgb))
             self._lbl_video.configure(image=img)
